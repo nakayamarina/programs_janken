@@ -32,20 +32,20 @@ import sys
 from sklearn import svm
 
 
-# In[3]:
+# In[8]:
 
 args = sys.argv
 PATH = args[1]
 
-# jupyter notebookのときはここで指定
-# PATH = '../State-2fe_Active/20181029rn/64ch/RawData/'
+# # jupyter notebookのときはここで指定
+# PATH = '../State-2fe_MaskBrodmann/20181029rn/mb/RawData/'
 
 
 # 検証手法
 col_name = 'leave-one-out'
 
 
-# In[4]:
+# In[9]:
 
 headcoil = PATH.split('/')[3]
 
@@ -67,7 +67,7 @@ print("TimeSeries(Scan Num) : " + str(N))
 # 引数としてあるボクセルにおける全試行分のデータをdata，タスクを見分けるための番号をlabelに受け取る．
 # 各試行で1ずつずらしながらNスキャン分の時系列データを取得する．全試行の時系列データをまとめて返す．
 
-# In[9]:
+# In[10]:
 
 def TsShift(data, label):
 
@@ -106,7 +106,7 @@ def TsShift(data, label):
 # テストデータに用いるデータごとに識別できたかできなかったか（1か0）を取得，全テストデータで識別できた(1)の割合を算出（leave-one-outと同じ要領）．
 # 得られた割合をパーセント表記にし，main関数へ返す．
 
-# In[13]:
+# In[11]:
 
 def SVM_LOO(data):
 
@@ -149,7 +149,6 @@ def SVM_LOO(data):
         # ラベルを作成
         y_train = np.array(list(traindata['label']))
 
-        print("Test Data : " + str(test_fst) + "-" + str(test_end) + " / Train Data Num : " + str(len(traindata)))
 
         # 線形SVMのインスタンスを生成
         model = svm.SVC(kernel = 'linear', C=1)
@@ -172,7 +171,7 @@ def SVM_LOO(data):
     return result
 
 
-# In[14]:
+# In[12]:
 
 if __name__ == '__main__':
 
@@ -197,57 +196,82 @@ if __name__ == '__main__':
     paper = paper.set_index(0)
 
 
-# In[15]:
+    # In[ ]:
 
-# 全ボクセルの識別率を格納するデータフレーム
-voxAc = pd.DataFrame(index = sorted(list(set(rock.index))), columns = [col_name])
+    # ボクセル数
+    voxNum = len(rock)
 
-# ボクセル数
-voxNum = len(rock)
+    # 全ボクセルの識別率を格納するデータフレーム
+    voxAc = pd.DataFrame(index = range(voxNum), columns = [col_name])
 
-for voxNo in range(voxNum):
+    counter = 0
+    csvcounter = 0
+    voxNames = []
 
-    voxName = 'Voxel' + str(voxNo + 1)
+    for voxNo in range(voxNum):
 
-    print(voxName)
+        voxName = 'Voxel' + str(voxNo + 1)
 
-    # ボクセルのデータを取得
-    rockVox = rock.loc[voxName]
-    scissorVox = scissor.loc[voxName]
-    paperVox = paper.loc[voxName]
+        print(voxName + '( ' + str(counter) + ' / ' + str(voxNum) + ' )')
 
-    # ボクセルにおける時系列データを取得
-    rockVoxTs = TsShift(rockVox, 0)
-    scissorVoxTs = TsShift(scissorVox, 1)
-    paperVoxTs = TsShift(paperVox, 2)
+        # ボクセルのデータを取得
+        rockVox = rock.loc[voxName]
+        scissorVox = scissor.loc[voxName]
+        paperVox = paper.loc[voxName]
 
-    # 全タスクを縦結合
-    VoxTs = pd.concat([rockVoxTs, scissorVoxTs, paperVoxTs])
+        # ボクセルにおける時系列データを取得
+        rockVoxTs = TsShift(rockVox, 0)
+        scissorVoxTs = TsShift(scissorVox, 1)
+        paperVoxTs = TsShift(paperVox, 2)
 
-    # 0-3列目は条件判定用の要素，要素名をつけておく
-    col_names = list(VoxTs.columns)
-    col_names[0:3] = ['label', 'fst', 'end']
-    VoxTs.columns = col_names
+        # 全タスクを縦結合
+        VoxTs = pd.concat([rockVoxTs, scissorVoxTs, paperVoxTs])
 
-    VoxTs.index = range(0,len(VoxTs))
+        # 0-3列目は条件判定用の要素，要素名をつけておく
+        col_names = list(VoxTs.columns)
+        col_names[0:3] = ['label', 'fst', 'end']
+        VoxTs.columns = col_names
 
-    # 学習と評価
-    result_vox = SVM_LOO(VoxTs)
+        VoxTs.index = range(0,len(VoxTs))
 
-    print(result_vox)
+        # 学習と評価
+        result_vox = SVM_LOO(VoxTs)
 
-    # データフレームに格納
-    voxAc.at[voxName, col_name] = result_vox
+        print(result_vox)
+
+        # データフレームに格納
+        voxAc.at[voxNo, :] = result_vox
+
+        # 途中経過見る用
+        # 何ボクセルで一度出力するか
+        midNum = 1000
+
+        if (counter % midNum == 0) and (counter != 0):
+
+            PATH_test = PATH + 'ACMID' + str(csvcounter) + '[loo]_VOXtimeseries' + str(N) +'_SVM.csv'
+            print(PATH_test)
+            MidVoxAc = voxAc.iloc[(csvcounter * midNum):((csvcounter + 1) * midNum), :]
+            MidVoxAc.index = voxNames
+            MidVoxAc.to_csv(PATH_test, index = True)
+
+            csvcounter = csvcounter + 1
+
+        counter = counter + 1
+        voxNames = voxNames + [voxName]
 
 
 
-# In[17]:
-
-print(voxAc)
-
-# csv書き出し
-PATH_RESULT = PATH + 'ACCURACY[loo]_VOXtimeseries' + str(N) +'_SVM.csv'
-voxAc.to_csv(PATH_RESULT, index = True)
+    # In[17]:
 
 
-# In[ ]:
+    # csv書き出し
+    PATH_RESULT = PATH + 'ACCURACY[loo]_VOXtimeseries' + str(N) +'_SVM.csv'
+    voxAc.to_csv(PATH_RESULT, index = True)
+
+    # 行名つける
+    voxAc.index = voxNames
+    # csv書き出し
+    PATH_RESULT = PATH + 'ACCURACY[loo]_VOXtimeseries' + str(N) +'_SVM.csv'
+    voxAc.to_csv(PATH_RESULT, index = True)
+
+    # In[ ]:
