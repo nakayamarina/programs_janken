@@ -43,8 +43,12 @@ DIRs=`ls -F ${PATH_BA} | grep /`
 for dir in $DIRs
 do
 
+
+
   for image_method in mb
   do
+
+    
     #
     # PATH_voxel="${PATH_DATA}${dir}${image_method}/"
     #
